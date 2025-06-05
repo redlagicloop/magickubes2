@@ -31,16 +31,43 @@ export interface AnalysisResponse {
 }
 
 export async function createConversation(): Promise<Conversation> {
-  const response = await apiRequest("POST", "/api/conversations", {});
+  const response = await fetch("/api/conversations", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to create conversation: ${response.statusText}`);
+  }
+  
   return response.json();
 }
 
 export async function getMessages(conversationId: number): Promise<Message[]> {
-  const response = await apiRequest("GET", `/api/conversations/${conversationId}/messages`, {});
+  const response = await fetch(`/api/conversations/${conversationId}/messages`, {
+    method: "GET",
+    credentials: "include",
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to get messages: ${response.statusText}`);
+  }
+  
   return response.json();
 }
 
 export async function sendMessage(conversationId: number, content: string): Promise<{ userMessage: Message; assistantMessage: Message }> {
-  const response = await apiRequest("POST", `/api/conversations/${conversationId}/messages`, { content });
+  const response = await fetch(`/api/conversations/${conversationId}/messages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ content }),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to send message: ${response.statusText}`);
+  }
+  
   return response.json();
 }

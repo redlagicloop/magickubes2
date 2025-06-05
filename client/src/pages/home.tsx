@@ -18,7 +18,8 @@ export default function Home() {
     onSuccess: (data) => {
       setConversation(data);
     },
-    onError: () => {
+    onError: (error: any) => {
+      console.error("Failed to create conversation:", error);
       toast({
         title: "Error",
         description: "Failed to start conversation. Please refresh the page.",
@@ -28,11 +29,12 @@ export default function Home() {
   });
 
   // Get messages for the conversation
-  const { data: messages = [] } = useQuery({
+  const { data: messages = [], error: messagesError } = useQuery({
     queryKey: ["messages", conversation?.id],
     queryFn: () => getMessages(conversation!.id),
     enabled: !!conversation?.id,
     refetchInterval: false,
+    retry: 1,
   });
 
   // Send message mutation
@@ -42,7 +44,8 @@ export default function Home() {
       // Invalidate and refetch messages
       queryClient.invalidateQueries({ queryKey: ["messages", conversation?.id] });
     },
-    onError: () => {
+    onError: (error: any) => {
+      console.error("Failed to send message:", error);
       toast({
         title: "Error",
         description: "Failed to send message. Please try again.",
@@ -53,8 +56,22 @@ export default function Home() {
 
   // Initialize conversation on component mount
   useEffect(() => {
-    createConversationMutation.mutate();
+    if (!conversation) {
+      createConversationMutation.mutate();
+    }
   }, []);
+
+  // Handle messages query error
+  useEffect(() => {
+    if (messagesError) {
+      console.error("Failed to fetch messages:", messagesError);
+      toast({
+        title: "Error",
+        description: "Failed to load messages. Please refresh the page.",
+        variant: "destructive",
+      });
+    }
+  }, [messagesError, toast]);
 
   const handleSendMessage = (content: string) => {
     if (!conversation) return;
