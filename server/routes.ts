@@ -1,20 +1,54 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { z } from "zod";
-import { insertAnalysisRequestSchema } from "@shared/schema";
+import { insertMessageSchema } from "@shared/schema";
+import { storage } from "./storage";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Mock API endpoint for AI analysis
-  app.post("/api/analyze", async (req, res) => {
+  // Create a new conversation
+  app.post("/api/conversations", async (req, res) => {
     try {
-      // Validate request body
-      const { prompt } = insertAnalysisRequestSchema.parse(req.body);
-      
+      const conversation = await storage.createConversation();
+      res.json(conversation);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to create conversation" });
+    }
+  });
+
+  // Get messages for a conversation
+  app.get("/api/conversations/:id/messages", async (req, res) => {
+    try {
+      const conversationId = parseInt(req.params.id);
+      const messages = await storage.getMessages(conversationId);
+      res.json(messages);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get messages" });
+    }
+  });
+
+  // Send a message and get AI response
+  app.post("/api/conversations/:id/messages", async (req, res) => {
+    try {
+      const conversationId = parseInt(req.params.id);
+      const { content } = req.body;
+
+      if (!content || typeof content !== 'string') {
+        return res.status(400).json({ message: "Content is required" });
+      }
+
+      // Save user message
+      const userMessage = await storage.createMessage({
+        conversationId,
+        role: "user",
+        content,
+        analysisData: undefined,
+      });
+
       // Simulate AI processing delay
-      await new Promise(resolve => setTimeout(resolve, 3000 + Math.random() * 2000));
-      
-      // Generate mock response based on prompt
-      const mockResponse = {
+      await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 3000));
+
+      // Generate AI response with analysis data
+      const analysisData = {
         insights: {
           keyMetrics: [
             { label: "Revenue Growth", value: "+24.5%", trend: "up", color: "blue" },
@@ -69,14 +103,21 @@ LIMIT 20;`,
           }
         }
       };
-      
-      res.json(mockResponse);
+
+      const assistantMessage = await storage.createMessage({
+        conversationId,
+        role: "assistant",
+        content: "I've analyzed your request and generated comprehensive insights including key metrics, detailed analysis, SQL query, and visualizations. You can explore the results in the tabs above.",
+        analysisData,
+      });
+
+      // Return both messages
+      res.json({
+        userMessage,
+        assistantMessage,
+      });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        res.status(400).json({ message: "Invalid request data", errors: error.errors });
-      } else {
-        res.status(500).json({ message: "Internal server error" });
-      }
+      res.status(500).json({ message: "Failed to send message" });
     }
   });
 
