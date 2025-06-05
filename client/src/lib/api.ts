@@ -1,4 +1,5 @@
 import { apiRequest } from "./queryClient";
+import type { Conversation, Message } from "@shared/schema";
 
 export interface AnalysisResponse {
   insights: {
@@ -29,7 +30,17 @@ export interface AnalysisResponse {
   };
 }
 
-export async function submitAnalysisRequest(prompt: string): Promise<AnalysisResponse> {
-  const response = await apiRequest("POST", "/api/analyze", { prompt });
+export async function createConversation(): Promise<Conversation> {
+  const response = await apiRequest("POST", "/api/conversations", {});
+  return response.json();
+}
+
+export async function getMessages(conversationId: number): Promise<Message[]> {
+  const response = await apiRequest("GET", `/api/conversations/${conversationId}/messages`, {});
+  return response.json();
+}
+
+export async function sendMessage(conversationId: number, content: string): Promise<{ userMessage: Message; assistantMessage: Message }> {
+  const response = await apiRequest("POST", `/api/conversations/${conversationId}/messages`, { content });
   return response.json();
 }

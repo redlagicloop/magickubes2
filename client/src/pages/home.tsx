@@ -1,63 +1,82 @@
-import { useState, useRef } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Header } from "@/components/header";
-import { PromptInput } from "@/components/prompt-input";
-import { LoadingOverlay } from "@/components/loading-overlay";
-import { ResultsSection } from "@/components/results-section";
-import { submitAnalysisRequest, type AnalysisResponse } from "@/lib/api";
+import { ChatHistory } from "@/components/chat-history";
+import { ChatInput } from "@/components/chat-input";
+import { createConversation, getMessages, sendMessage } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import type { Message, Conversation } from "@shared/schema";
 
 export default function Home() {
-  const [results, setResults] = useState<AnalysisResponse | null>(null);
+  const [conversation, setConversation] = useState<Conversation | null>(null);
   const { toast } = useToast();
-  const resultsRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
 
-  const analysisMutation = useMutation({
-    mutationFn: submitAnalysisRequest,
+  // Create conversation on mount
+  const createConversationMutation = useMutation({
+    mutationFn: createConversation,
     onSuccess: (data) => {
-      setResults(data);
-      // Scroll to results section after a brief delay
-      setTimeout(() => {
-        resultsRef.current?.scrollIntoView({ 
-          behavior: 'smooth', 
-          block: 'start' 
-        });
-      }, 300);
+      setConversation(data);
     },
-    onError: (error: any) => {
+    onError: () => {
       toast({
         title: "Error",
-        description: error.message || "Failed to analyze your request. Please try again.",
+        description: "Failed to start conversation. Please refresh the page.",
         variant: "destructive",
       });
     },
   });
 
-  const handleSubmit = (prompt: string) => {
-    analysisMutation.mutate(prompt);
+  // Get messages for the conversation
+  const { data: messages = [] } = useQuery({
+    queryKey: ["messages", conversation?.id],
+    queryFn: () => getMessages(conversation!.id),
+    enabled: !!conversation?.id,
+    refetchInterval: false,
+  });
+
+  // Send message mutation
+  const sendMessageMutation = useMutation({
+    mutationFn: (content: string) => sendMessage(conversation!.id, content),
+    onSuccess: () => {
+      // Invalidate and refetch messages
+      queryClient.invalidateQueries({ queryKey: ["messages", conversation?.id] });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to send message. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Initialize conversation on component mount
+  useEffect(() => {
+    createConversationMutation.mutate();
+  }, []);
+
+  const handleSendMessage = (content: string) => {
+    if (!conversation) return;
+    sendMessageMutation.mutate(content);
   };
 
   return (
-    <div className="min-h-screen">
+    <div className="h-screen flex flex-col bg-gray-50">
       <Header />
       
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <PromptInput
-          onSubmit={handleSubmit}
-          isLoading={analysisMutation.isPending}
+      <div className="flex-1 flex flex-col max-w-6xl mx-auto w-full border-x border-gray-200 bg-white shadow-sm">
+        <ChatHistory 
+          messages={messages}
+          isLoading={sendMessageMutation.isPending}
         />
         
-        <div ref={resultsRef}>
-          {results && (
-            <ResultsSection
-              data={results}
-              isVisible={!analysisMutation.isPending}
-            />
-          )}
-        </div>
-      </main>
-
-      <LoadingOverlay isVisible={analysisMutation.isPending} />
+        <ChatInput
+          onSendMessage={handleSendMessage}
+          isLoading={sendMessageMutation.isPending}
+          disabled={!conversation}
+        />
+      </div>
     </div>
   );
 }
