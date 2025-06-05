@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { MessageBubble } from "./message-bubble";
-import { LoadingDots } from "./loading-dots";
+import { LoadingDots } from "@/components/loading-dots";
 import type { Message } from "@shared/schema";
 
 interface ChatHistoryProps {
